@@ -4,6 +4,7 @@ import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import si from 'systeminformation';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,8 @@ server.use(express.static('public'));
 server.use(express.json());
 
 let streamProcess = null;
+let currentStreamConfig = null;
+let isAutoRestarting = false;
 
 // Endpoint for video upload
 server.post('/upload', upload.single('video'), (req, res) => {
@@ -43,10 +46,15 @@ server.post('/upload', upload.single('video'), (req, res) => {
 // Endpoint to list uploaded videos
 server.get('/videos', (req, res) => {
   try {
-    const files = fs.readdirSync(uploadDir).map(file => ({
-      name: file,
-      path: path.join('uploads', file)
-    }));
+    const files = fs.readdirSync(uploadDir).map(file => {
+        const stats = fs.statSync(path.join(uploadDir, file));
+        return {
+            name: file,
+            path: path.join('uploads', file),
+            size: (stats.size / (1024 * 1024)).toFixed(2) + ' MB',
+            createdAt: stats.birthtime
+        };
+    }).sort((a, b) => b.createdAt - a.createdAt);
     res.send(files);
   } catch (err) {
     res.status(500).send({ error: 'Failed to list videos' });
@@ -66,12 +74,26 @@ server.delete('/videos/:filename', (req, res) => {
   }
 });
 
+// Get System Stats
+server.get('/stats', async (req, res) => {
+    try {
+        const cpu = await si.currentLoad();
+        const mem = await si.mem();
+        res.send({
+            cpu: Math.round(cpu.currentLoad),
+            memory: Math.round((mem.active / mem.total) * 100)
+        });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to get stats' });
+    }
+});
+
 // Start streaming
 server.post('/start-stream', (req, res) => {
-  const { streamkey, video, loop, quality, bitrate } = req.body;
+  const { streamkey, video, loop } = req.body;
 
-  if (!video) {
-    return res.status(400).send({ error: 'Video file is required!' });
+  if (!video || !streamkey) {
+    return res.status(400).send({ error: 'Video file and Stream Key are required!' });
   }
 
   const filePath = path.join(uploadDir, video);
@@ -79,65 +101,68 @@ server.post('/start-stream', (req, res) => {
     return res.status(400).send({ error: 'Video file not found!' });
   }
 
-  if (streamProcess) {
-    streamProcess.kill();
-  }
-
-  // Quality Presets
-  const resolutions = {
-    '480p': '854x480',
-    '720p': '1280x720',
-    '1080p': '1920x1080',
-    '2k': '2560x1440',
-    '4k': '3840x2160'
-  };
-
-  const resolution = resolutions[quality] || '1280x720';
-  const targetBitrate = bitrate || '3000k';
-
-  const ffmpegCommand = [
-    'ffmpeg',
-    ...(loop ? ['-stream_loop', '-1'] : []), // Loop enabled if requested
-    '-re',
-    '-i', filePath,
-    '-vcodec', 'libx264',
-    '-pix_fmt', 'yuv420p',
-    '-preset', 'veryfast',
-    '-s', resolution,
-    '-b:v', targetBitrate,
-    '-maxrate', targetBitrate,
-    '-bufsize', (parseInt(targetBitrate) * 2) + 'k',
-    '-g', '60',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-ar', '44100',
-    '-f', 'flv',
-    `rtmp://a.rtmp.youtube.com/live2/${streamkey}`
-  ];
-
-  console.log('Starting FFmpeg with command:', ffmpegCommand.join(' '));
-
-  streamProcess = spawn(ffmpegCommand[0], ffmpegCommand.slice(1));
-
-  streamProcess.stdout.on('data', (data) => {
-    // console.log(`stdout: ${data}`);
-  });
-
-  streamProcess.stderr.on('data', (data) => {
-    // FFmpeg outputs status to stderr
-    // console.error(`stderr: ${data}`);
-  });
-
-  streamProcess.on('close', (code) => {
-    console.log(`Stream process exited with code ${code}`);
-    streamProcess = null;
-  });
+  currentStreamConfig = { streamkey, video, loop };
+  startFFmpeg();
 
   res.send({ message: 'Streaming started' });
 });
 
+function startFFmpeg() {
+    if (streamProcess) {
+        streamProcess.kill();
+    }
+
+    const { streamkey, video, loop } = currentStreamConfig;
+    const filePath = path.join(uploadDir, video);
+
+    // FFmpeg command with automatic resolution and bitrate (copying source where possible for efficiency)
+    // We use -c:v libx264 for compatibility but let it auto-scale or use source settings
+    const ffmpegCommand = [
+        'ffmpeg',
+        ...(loop ? ['-stream_loop', '-1'] : []),
+        '-re',
+        '-i', filePath,
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-tune', 'zerolatency',
+        '-pix_fmt', 'yuv420p',
+        '-g', '60',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-f', 'flv',
+        `rtmp://a.rtmp.youtube.com/live2/${streamkey}`
+    ];
+
+    console.log('Starting FFmpeg with command:', ffmpegCommand.join(' '));
+
+    streamProcess = spawn(ffmpegCommand[0], ffmpegCommand.slice(1));
+
+    streamProcess.on('close', (code) => {
+        console.log(`Stream process exited with code ${code}`);
+        streamProcess = null;
+        
+        // Auto-restart logic if it wasn't a manual stop
+        if (!isAutoRestarting && currentStreamConfig) {
+            console.log('Stream stopped unexpectedly, restarting in 5 seconds...');
+            isAutoRestarting = true;
+            setTimeout(() => {
+                if (currentStreamConfig) {
+                    startFFmpeg();
+                }
+                isAutoRestarting = false;
+            }, 5000);
+        }
+    });
+
+    streamProcess.stderr.on('data', (data) => {
+        // You could parse FFmpeg output here for more detailed analytics
+    });
+}
+
 // Stop streaming
 server.post('/stop-stream', (req, res) => {
+  currentStreamConfig = null; // Clear config to prevent auto-restart
   if (streamProcess) {
     streamProcess.kill('SIGINT');
     streamProcess = null;
