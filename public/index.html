@@ -3,147 +3,187 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Manus RTMP Streamer Pro</title>
+  <title>Manus RTMP Ultra v3 | Advanced Analytics</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-    .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .pulse-live { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+    .gradient-bg { background: radial-gradient(circle at top right, #1e293b, #0f172a); }
+    .pulse-live { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }
+    .chart-container { position: relative; height: 150px; width: 100%; }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <div class="gradient-bg h-64 w-full absolute top-0 z-0"></div>
+<body class="bg-slate-50 min-h-screen text-slate-900">
+  <div class="gradient-bg h-72 w-full absolute top-0 z-0"></div>
   
-  <div class="relative z-10 container mx-auto px-4 py-8">
-    <header class="text-white mb-10 flex justify-between items-center">
-      <div>
-        <h1 class="text-4xl font-bold mb-2">Manus RTMP Streamer Pro</h1>
-        <p class="opacity-80">Professional Live Streaming Control Panel • <span class="font-semibold">Auto-Quality Enabled</span></p>
+  <div class="relative z-10 container mx-auto px-4 py-6">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div class="text-white">
+        <h1 class="text-3xl font-extrabold tracking-tight">Manus RTMP <span class="text-indigo-400">Ultra v3</span></h1>
+        <p class="text-slate-400 text-sm font-medium">Advanced Stream Intelligence & Real-time Visualization</p>
       </div>
-      <div id="liveIndicator" class="hidden items-center bg-red-500 px-4 py-2 rounded-full text-white font-bold text-sm pulse-live">
-        <i class="fas fa-circle mr-2"></i> LIVE
+      <div class="flex items-center gap-3">
+        <div id="healthBadge" class="px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-[10px] font-bold uppercase tracking-widest flex items-center">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2"></span> System Healthy
+        </div>
+        <div id="liveIndicator" class="hidden items-center bg-rose-500 px-5 py-1.5 rounded-full text-white font-bold text-[10px] pulse-live shadow-xl uppercase tracking-widest">
+          <i class="fas fa-circle mr-2 text-[6px]"></i> Live Now
+        </div>
       </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <!-- Left Column: Upload & Management -->
-      <div class="lg:col-span-1 space-y-8">
-        <!-- Upload Section -->
-        <div class="glass rounded-2xl shadow-xl p-6 border border-white/20">
-          <h2 class="text-xl font-semibold mb-4 flex items-center">
-            <i class="fas fa-cloud-upload-alt mr-2 text-indigo-600"></i> Upload Video
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left: Controls & Library -->
+      <div class="lg:col-span-4 space-y-6">
+        <!-- Control Panel -->
+        <div class="glass rounded-3xl shadow-sm p-6 border border-white">
+          <h2 class="text-lg font-bold mb-5 flex items-center">
+            <i class="fas fa-sliders-h mr-3 text-indigo-600"></i> Stream Control
           </h2>
+          
           <div class="space-y-4">
-            <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-indigo-500 transition-colors cursor-pointer" id="dropZone">
-              <input type="file" id="upload" class="hidden" accept="video/*" />
-              <label for="upload" class="cursor-pointer">
-                <i class="fas fa-file-video text-4xl text-gray-400 mb-2"></i>
-                <p class="text-sm text-gray-500" id="fileNameDisplay">Click or drag video to upload</p>
-              </label>
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-bold text-slate-500 uppercase ml-1">Stream Key</label>
+              <div class="relative">
+                <input type="password" id="streamkey" class="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-100 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm bg-slate-50/50" placeholder="Paste RTMP Key" />
+                <i class="fas fa-key absolute left-4 top-4 text-slate-300 text-xs"></i>
+                <button onclick="toggleKey()" class="absolute right-4 top-4 text-slate-300 hover:text-indigo-500"><i class="fas fa-eye text-xs" id="eyeIcon"></i></button>
+              </div>
             </div>
-            <button id="uploadBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center">
-              <i class="fas fa-upload mr-2"></i> Upload Now
-            </button>
+            
+            <div class="space-y-1.5">
+              <label class="text-[11px] font-bold text-slate-500 uppercase ml-1">Select Media</label>
+              <div class="relative">
+                <select id="selectedVideo" class="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-100 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none appearance-none transition-all text-sm bg-slate-50/50">
+                  <option value="">-- Select from Library --</option>
+                </select>
+                <i class="fas fa-play-circle absolute left-4 top-4 text-slate-300 text-xs"></i>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-slate-50/80 rounded-2xl border border-slate-100">
+              <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                  <i class="fas fa-sync-alt text-indigo-600 text-xs"></i>
+                </div>
+                <span class="text-xs font-bold text-slate-700">Infinite Loop</span>
+              </div>
+              <button id="loopToggle" class="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 transition-colors focus:outline-none">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1 shadow-sm" id="loopDot"></span>
+              </button>
+            </div>
+
+            <div class="pt-2 flex gap-3">
+              <button id="startBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center">
+                <i class="fas fa-paper-plane mr-2"></i> START
+              </button>
+              <button id="stopBtn" class="hidden flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-rose-200 flex items-center justify-center">
+                <i class="fas fa-stop mr-2"></i> STOP
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Video List Section -->
-        <div class="glass rounded-2xl shadow-xl p-6 border border-white/20">
-          <h2 class="text-xl font-semibold mb-4 flex items-center">
-            <i class="fas fa-list mr-2 text-indigo-600"></i> Library
-          </h2>
-          <div id="videoList" class="space-y-3 max-h-96 overflow-y-auto pr-2">
-            <p class="text-gray-400 text-center py-4">No videos uploaded yet</p>
+        <!-- Library -->
+        <div class="glass rounded-3xl shadow-sm p-6 border border-white">
+          <div class="flex justify-between items-center mb-5">
+            <h2 class="text-lg font-bold flex items-center">
+              <i class="fas fa-database mr-3 text-indigo-600"></i> Media Assets
+            </h2>
+            <button onclick="document.getElementById('upload').click()" class="text-[10px] font-bold text-indigo-600 hover:underline uppercase tracking-wider">Add New</button>
+          </div>
+          
+          <input type="file" id="upload" class="hidden" accept="video/*" />
+          <div id="uploadProgressContainer" class="hidden mb-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+            <div class="flex justify-between text-[10px] font-bold text-indigo-600 mb-2">
+              <span id="uploadPercent">0%</span>
+              <span id="uploadSpeed">0 KB/s</span>
+            </div>
+            <div class="w-full bg-white rounded-full h-1.5">
+              <div id="uploadProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div id="videoList" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+            <p class="text-slate-400 text-center py-8 text-xs italic">No media found</p>
           </div>
         </div>
       </div>
 
-      <!-- Right Column: Stream Control & Settings -->
-      <div class="lg:col-span-2 space-y-8">
-        <div class="glass rounded-2xl shadow-xl p-8 border border-white/20">
-          <h2 class="text-2xl font-bold mb-6 flex items-center">
-            <i class="fas fa-broadcast-tower mr-3 text-indigo-600"></i> Stream Configuration
-          </h2>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Stream Key</label>
-              <div class="relative">
-                <input type="password" id="streamkey" class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all" placeholder="Paste your stream key here" />
-                <i class="fas fa-key absolute left-3 top-4 text-gray-400"></i>
-                <button onclick="toggleKey()" class="absolute right-3 top-4 text-gray-400 hover:text-indigo-600">
-                  <i class="fas fa-eye" id="eyeIcon"></i>
-                </button>
-              </div>
+      <!-- Right: Analytics & Visualization -->
+      <div class="lg:col-span-8 space-y-6">
+        <!-- Real-time Visualization -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="glass rounded-3xl shadow-sm p-6 border border-white">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Bitrate Stability (kbps)</h3>
+              <span id="currentBitrateVal" class="text-sm font-bold text-indigo-600">0</span>
             </div>
-            
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Select Content</label>
-              <div class="relative">
-                <select id="selectedVideo" class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none appearance-none transition-all">
-                  <option value="">-- Choose from Library --</option>
-                </select>
-                <i class="fas fa-play-circle absolute left-3 top-4 text-gray-400"></i>
-              </div>
+            <div class="chart-container">
+              <canvas id="bitrateChart"></canvas>
             </div>
           </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Loop Mode</label>
-              <div class="flex items-center space-x-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <span class="text-sm text-gray-600">Off</span>
-                <button id="loopToggle" class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 transition-colors focus:outline-none">
-                  <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" id="loopDot"></span>
-                </button>
-                <span class="text-sm text-gray-600 font-bold">On</span>
-              </div>
+          <div class="glass rounded-3xl shadow-sm p-6 border border-white">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">System Load (%)</h3>
+              <span id="currentCpuVal" class="text-sm font-bold text-rose-500">0%</span>
             </div>
-
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Smart Settings</label>
-              <div class="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-indigo-700 text-sm flex items-center">
-                <i class="fas fa-magic mr-2"></i> Auto-resolution & Bitrate active
-              </div>
+            <div class="chart-container">
+              <canvas id="cpuChart"></canvas>
             </div>
-          </div>
-
-          <div class="flex flex-col md:flex-row gap-4">
-            <button id="startBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-green-200 flex items-center justify-center text-lg">
-              <i class="fas fa-play mr-2"></i> Go Live
-            </button>
-            <button id="stopBtn" class="hidden flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-red-200 flex items-center justify-center text-lg">
-              <i class="fas fa-stop mr-2"></i> Stop Stream
-            </button>
           </div>
         </div>
 
-        <!-- Status & Analytics -->
-        <div class="glass rounded-2xl shadow-xl p-6 border border-white/20">
-          <h2 class="text-xl font-semibold mb-4 flex items-center">
-            <i class="fas fa-chart-line mr-2 text-indigo-600"></i> Real-time Analytics
-          </h2>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">Status</p>
-              <p id="statusText" class="text-lg font-semibold text-gray-400">Offline</p>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">Uptime</p>
-              <p id="uptimeText" class="text-lg font-semibold text-gray-700">00:00:00</p>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">CPU Load</p>
-              <p id="cpuText" class="text-lg font-semibold text-gray-700">0%</p>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">Memory</p>
-              <p id="memText" class="text-lg font-semibold text-gray-700">0%</p>
-            </div>
+        <!-- Advanced Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="glass p-5 rounded-3xl border border-white text-center">
+            <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Stream Health</p>
+            <p id="healthText" class="text-sm font-bold text-emerald-500">Excellent</p>
+          </div>
+          <div class="glass p-5 rounded-3xl border border-white text-center">
+            <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Network Out</p>
+            <p id="netText" class="text-sm font-bold text-slate-700">0 KB/s</p>
+          </div>
+          <div class="glass p-5 rounded-3xl border border-white text-center">
+            <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Frame Drops</p>
+            <p id="dropText" class="text-sm font-bold text-slate-700">0</p>
+          </div>
+          <div class="glass p-5 rounded-3xl border border-white text-center">
+            <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Session Time</p>
+            <p id="uptimeText" class="text-sm font-bold text-slate-700">00:00:00</p>
+          </div>
+        </div>
+
+        <!-- History & Logs -->
+        <div class="glass rounded-3xl shadow-sm border border-white overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+            <h3 class="text-sm font-bold text-slate-700 flex items-center">
+              <i class="fas fa-history mr-2 text-indigo-500"></i> Session Intelligence
+            </h3>
+            <div id="streamStatusBadge" class="text-[9px] font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-500 uppercase tracking-widest">Ready</div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-slate-400 border-b border-slate-50">
+                  <th class="px-6 py-4 font-bold uppercase tracking-wider">Media Source</th>
+                  <th class="px-6 py-4 font-bold uppercase tracking-wider">Timestamp</th>
+                  <th class="px-6 py-4 font-bold uppercase tracking-wider">Duration</th>
+                  <th class="px-6 py-4 font-bold uppercase tracking-wider">Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="historyList" class="divide-y divide-slate-50">
+                <!-- Data -->
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
