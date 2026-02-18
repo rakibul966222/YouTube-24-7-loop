@@ -7,28 +7,26 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const loopToggle = document.getElementById('loopToggle');
 const loopDot = document.getElementById('loopDot');
-const qualitySelect = document.getElementById('quality');
-const bitrateInput = document.getElementById('bitrate');
 const statusText = document.getElementById('statusText');
 const fileNameDisplay = document.getElementById('fileNameDisplay');
 const dropZone = document.getElementById('dropZone');
+const liveIndicator = document.getElementById('liveIndicator');
 
 let isLooping = false;
 let uptimeInterval = null;
+let statsInterval = null;
 let startTime = null;
 
 // --- Event Listeners ---
 
-// Loop Toggle
 loopToggle.addEventListener('click', () => {
     isLooping = !isLooping;
     loopToggle.classList.toggle('bg-indigo-600', isLooping);
     loopToggle.classList.toggle('bg-gray-300', !isLooping);
-    loopDot.classList.toggle('translate-x-5', isLooping); // Adjusted for new size
+    loopDot.classList.toggle('translate-x-5', isLooping);
     loopDot.classList.toggle('translate-x-1', !isLooping);
 });
 
-// File Name Display & Drop Zone
 uploadInput.addEventListener('change', () => {
     if (uploadInput.files.length > 0) {
         fileNameDisplay.textContent = uploadInput.files[0].name;
@@ -55,18 +53,12 @@ dropZone.addEventListener('drop', (e) => {
     }
 });
 
-// Upload Button
 uploadBtn.addEventListener('click', handleUpload);
-
-// Start Stream Button
 startBtn.addEventListener('click', startStream);
-
-// Stop Stream Button
 stopBtn.addEventListener('click', stopStream);
 
 // --- Core Functions ---
 
-// Fetch and display uploaded videos
 async function fetchVideos() {
     try {
         const response = await fetch('/videos');
@@ -81,7 +73,10 @@ async function fetchVideos() {
             div.innerHTML = `
                 <div class="flex items-center space-x-3 overflow-hidden">
                     <i class="fas fa-video text-indigo-400"></i>
-                    <span class="text-sm font-medium text-gray-700 truncate">${video.name}</span>
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-sm font-medium text-gray-700 truncate">${video.name}</span>
+                        <span class="text-xs text-gray-400">${video.size}</span>
+                    </div>
                 </div>
                 <button onclick="deleteVideo('${video.name}')" class="text-red-400 hover:text-red-600 p-2 rounded-full transition-colors">
                     <i class="fas fa-trash-alt"></i>
@@ -100,7 +95,6 @@ async function fetchVideos() {
     }
 }
 
-// Handle video upload process
 async function handleUpload() {
     const file = uploadInput.files[0];
     if (!file) {
@@ -130,7 +124,6 @@ async function handleUpload() {
     }
 }
 
-// Delete a video
 async function deleteVideo(filename) {
     if (!confirm(`Are you sure you want to delete ${filename}?`)) return;
     
@@ -147,12 +140,9 @@ async function deleteVideo(filename) {
     }
 }
 
-// Start the streaming process
 async function startStream() {
     const streamkey = streamKeyInput.value;
     const video = selectedVideo.value;
-    const quality = qualitySelect.value;
-    const bitrate = bitrateInput.value;
 
     if (!streamkey || !video) {
         showToast('Stream key and a selected video are required!', 'error');
@@ -165,7 +155,7 @@ async function startStream() {
         const response = await fetch('/start-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ streamkey, video, loop: isLooping, quality, bitrate })
+            body: JSON.stringify({ streamkey, video, loop: isLooping })
         });
 
         if (!response.ok) {
@@ -175,6 +165,7 @@ async function startStream() {
         
         showToast('Streaming is now live!', 'success');
         startUptimeCounter();
+        startStatsPolling();
 
     } catch (error) {
         showToast(error.message, 'error');
@@ -182,7 +173,6 @@ async function startStream() {
     }
 }
 
-// Stop the streaming process
 async function stopStream() {
     try {
         const response = await fetch('/stop-stream', { method: 'POST' });
@@ -190,6 +180,7 @@ async function stopStream() {
             showToast('Streaming stopped successfully!', 'success');
             setStreamState(false);
             stopUptimeCounter();
+            stopStatsPolling();
         } else {
             showToast('Failed to stop stream.', 'error');
         }
@@ -203,6 +194,8 @@ async function stopStream() {
 function setStreamState(isStreaming) {
     startBtn.classList.toggle('hidden', isStreaming);
     stopBtn.classList.toggle('hidden', !isStreaming);
+    liveIndicator.classList.toggle('hidden', !isStreaming);
+    liveIndicator.classList.toggle('flex', isStreaming);
     statusText.textContent = isStreaming ? 'Live' : 'Offline';
     statusText.classList.toggle('text-green-500', isStreaming);
     statusText.classList.toggle('text-gray-400', !isStreaming);
@@ -228,7 +221,6 @@ function startUptimeCounter() {
 function stopUptimeCounter() {
     clearInterval(uptimeInterval);
     document.getElementById('uptimeText').textContent = '00:00:00';
-    document.getElementById('cpuText').textContent = '0%';
 }
 
 function updateUptime() {
@@ -237,9 +229,28 @@ function updateUptime() {
     const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
     const s = (diff % 60).toString().padStart(2, '0');
     document.getElementById('uptimeText').textContent = `${h}:${m}:${s}`;
-    
-    // Simulate some analytics
-    document.getElementById('cpuText').textContent = Math.floor(Math.random() * (15 - 5 + 1) + 5) + '%';
+}
+
+function startStatsPolling() {
+    fetchStats();
+    statsInterval = setInterval(fetchStats, 3000);
+}
+
+function stopStatsPolling() {
+    clearInterval(statsInterval);
+    document.getElementById('cpuText').textContent = '0%';
+    document.getElementById('memText').textContent = '0%';
+}
+
+async function fetchStats() {
+    try {
+        const response = await fetch('/stats');
+        const data = await response.json();
+        document.getElementById('cpuText').textContent = data.cpu + '%';
+        document.getElementById('memText').textContent = data.memory + '%';
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+    }
 }
 
 function showToast(message, type = 'info') {

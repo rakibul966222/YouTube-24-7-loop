@@ -11,15 +11,22 @@
     body { font-family: 'Inter', sans-serif; }
     .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
     .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .pulse-live { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
   <div class="gradient-bg h-64 w-full absolute top-0 z-0"></div>
   
   <div class="relative z-10 container mx-auto px-4 py-8">
-    <header class="text-white mb-10">
-      <h1 class="text-4xl font-bold mb-2">Manus RTMP Streamer Pro</h1>
-      <p class="opacity-80">Professional Live Streaming Control Panel</p>
+    <header class="text-white mb-10 flex justify-between items-center">
+      <div>
+        <h1 class="text-4xl font-bold mb-2">Manus RTMP Streamer Pro</h1>
+        <p class="opacity-80">Professional Live Streaming Control Panel • <span class="font-semibold">Auto-Quality Enabled</span></p>
+      </div>
+      <div id="liveIndicator" class="hidden items-center bg-red-500 px-4 py-2 rounded-full text-white font-bold text-sm pulse-live">
+        <i class="fas fa-circle mr-2"></i> LIVE
+      </div>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -41,9 +48,6 @@
             <button id="uploadBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-indigo-200 flex items-center justify-center">
               <i class="fas fa-upload mr-2"></i> Upload Now
             </button>
-            <div id="uploadProgress" class="hidden w-full bg-gray-200 rounded-full h-2.5">
-              <div class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
-            </div>
           </div>
         </div>
 
@@ -53,7 +57,6 @@
             <i class="fas fa-list mr-2 text-indigo-600"></i> Library
           </h2>
           <div id="videoList" class="space-y-3 max-h-96 overflow-y-auto pr-2">
-            <!-- Videos will be injected here -->
             <p class="text-gray-400 text-center py-4">No videos uploaded yet</p>
           </div>
         </div>
@@ -89,7 +92,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="space-y-2">
               <label class="text-sm font-semibold text-gray-700">Loop Mode</label>
               <div class="flex items-center space-x-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -102,19 +105,10 @@
             </div>
 
             <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Stream Quality</label>
-              <select id="quality" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                <option value="480p">480p (SD)</option>
-                <option value="720p" selected>720p (HD)</option>
-                <option value="1080p">1080p (Full HD)</option>
-                <option value="2k">2K (QHD)</option>
-                <option value="4k">4K (Ultra HD)</option>
-              </select>
-            </div>
-
-            <div class="space-y-2">
-              <label class="text-sm font-semibold text-gray-700">Bitrate (kbps)</label>
-              <input type="number" id="bitrate" value="3000" class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+              <label class="text-sm font-semibold text-gray-700">Smart Settings</label>
+              <div class="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-indigo-700 text-sm flex items-center">
+                <i class="fas fa-magic mr-2"></i> Auto-resolution & Bitrate active
+              </div>
             </div>
           </div>
 
@@ -131,7 +125,7 @@
         <!-- Status & Analytics -->
         <div class="glass rounded-2xl shadow-xl p-6 border border-white/20">
           <h2 class="text-xl font-semibold mb-4 flex items-center">
-            <i class="fas fa-chart-line mr-2 text-indigo-600"></i> Stream Analytics
+            <i class="fas fa-chart-line mr-2 text-indigo-600"></i> Real-time Analytics
           </h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
@@ -143,12 +137,12 @@
               <p id="uptimeText" class="text-lg font-semibold text-gray-700">00:00:00</p>
             </div>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">CPU Usage</p>
+              <p class="text-xs text-gray-500 uppercase font-bold">CPU Load</p>
               <p id="cpuText" class="text-lg font-semibold text-gray-700">0%</p>
             </div>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <p class="text-xs text-gray-500 uppercase font-bold">Dropped Frames</p>
-              <p id="framesText" class="text-lg font-semibold text-gray-700">0</p>
+              <p class="text-xs text-gray-500 uppercase font-bold">Memory</p>
+              <p id="memText" class="text-lg font-semibold text-gray-700">0%</p>
             </div>
           </div>
         </div>
@@ -158,5 +152,4 @@
 
   <script src="script.js"></script>
 </body>
-                  </html>
-
+</html>
